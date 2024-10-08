@@ -1,0 +1,615 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         Int       @id @default(autoincrement()) @map("id")
+  username   String    @unique()
+  password   String
+  name       String
+  email      String?
+  // dob        String?
+  // gender      String?
+  contact    String?
+  image      String?
+  otp    String?
+  otp_expiry      String?
+  is_otp_verified Boolean? @default(false)
+  created_by String?
+  role       Role      @default(Curator)
+  created_at DateTime? @default(now())
+  updated_at DateTime? @updatedAt
+  student    Student[]
+  
+  
+}
+
+model Board {
+  id         Int         @id @default(autoincrement()) @map("id")
+  board_id   String      @unique
+  board_name String
+  status      String?    @default("Active")
+  paper      PaperInfo[]
+  created_at DateTime?   @default(now())
+  updated_at DateTime?   @updatedAt
+  standard   Standard[]
+}
+
+// PaperInfo model
+model PaperInfo {
+  id            Int       @id @default(autoincrement()) @map("id")
+  board_id      String
+  board         Board     @relation(fields: [board_id], references: [board_id])
+  subject_code  String
+  paperId       String    @unique()
+  standard_type String
+  standard_id   String?
+  Subject_name  String?
+  subject_id    String?
+  isPublished   Boolean   @default(false)
+  published_by  String?
+  publish_date  DateTime?
+  isTheory      Boolean   @default(false)
+  exam_session  String?
+  exam_year     String?
+  paper_number  String?
+  exam_variant  String?
+  attempt_time  String?
+  qp_url        String?
+  qp_name       String?
+  qp_updated_by String?
+  qp_file_size  String?
+  qp_updated_at DateTime?
+
+  ms_url        String?
+  ms_name       String?
+  ms_updated_by String?
+  ms_file_size  String?
+  ms_updated_at DateTime?
+  ci_url        String?
+  ci_name       String?
+  ci_updated_by String?
+  ci_file_size  String?
+
+  ci_updated_at     DateTime?
+  insert_url        String?
+  insert_name       String?
+  insert_updated_by String?
+  insert_file_size  String?
+  insert_updated_at DateTime?
+  notes_url         String?
+  video_url         String?
+  worksheet_url     String?
+  created_by        String?
+  paper_question    PaperQuestion[] // Many-to-many relationship with questionInfo
+  created_at        DateTime?         @default(now())
+  updated_at        DateTime?         @updatedAt
+  attempted_answer  AttemptedAnswer[] // Many-to-many relationship with
+  student_attempt   StudentAttempt[]
+
+  SavedYearlyPapers SavedYearlyPapers[]
+}
+
+// PaperQuestion model for the many-to-many relationship
+model PaperQuestion {
+  question_number String
+  PaperNum        String
+  createdAt       DateTime     @default(now())
+  paper           PaperInfo    @relation(fields: [PaperNum], references: [paperId])
+  question        questionInfo @relation(fields: [question_number, PaperNum], references: [question_number, PaperNum], onDelete: Cascade, onUpdate: Cascade)
+
+  @@id([question_number, PaperNum])
+  @@map("paper_question")
+}
+
+// questionInfo model
+model questionInfo {
+  // id                   Int       @id @default(autoincrement()) @map("id")
+  unique_question_id        String            @unique() @map("unique_question_id")
+  question_number           String
+  PaperNum                  String
+  chapter_name              String?
+  chapter_id                String?
+  session_name              String?
+  caption                   String?
+  question_image            String?
+  answer_image              String?
+  extra_question_images     String[]          @default([])
+  question_topics           String[]          @default([])
+  question_subTopics        String[]
+  question_year             String?
+  question_difficulty_level String?
+  correct_answer            String?
+  imageCordinates           String[]          @default([])
+  question_text             String?
+  notes_url                 String?
+  video_url                 String?
+  worksheet_url             String?
+  question_section          String?
+  created_by                String?
+  question_instructions     String?
+  question_marks            String?
+  question_status           Boolean?          @default(true)
+  paper_question            PaperQuestion[] // Many-to-many relationship with PaperInfo
+  created_at                DateTime?         @default(now())
+  updated_at                DateTime?         @updatedAt
+  attempted_answer          AttemptedAnswer[]
+  theoryAnswers             TheoryAnsweInfo[]
+  images                    Image[] // Relation to Image model
+  topical_questions         TopicalQuestion[]
+
+ 
+  QuestionChapter QuestionChapter[]
+
+  // Add a composite primary key
+  @@id([question_number, PaperNum])
+}
+
+//multi chapter model
+model QuestionChapter {
+  id Int @id @default(autoincrement())
+  question_number String 
+  questionInfo questionInfo @relation(fields: [question_number], references: [unique_question_id], onDelete: Cascade, onUpdate: Cascade)
+  PaperNum String
+  chapter_name String
+  chapter_id String
+  created_at DateTime @default(now())
+  updated_at     DateTime     @updatedAt
+
+}
+
+// Image model
+model Image {
+  id             Int          @id @default(autoincrement())
+  imageUrl       String
+  imageType      String?      @default("question_image") // For example: "question_image", "answer_image", etc.
+  questionInfoId String
+  questionInfo   questionInfo @relation(fields: [questionInfoId], references: [unique_question_id])
+  created_at     DateTime     @default(now())
+  updated_at     DateTime     @updatedAt
+}
+
+model TheoryAnsweInfo {
+  id                  Int           @id @default(autoincrement()) @map("id")
+  unique_question_id  String?       @unique
+  unique_answer_id    String?
+  question_id         questionInfo? @relation(fields: [unique_question_id], references: [unique_question_id], onDelete: Cascade, onUpdate: Cascade)
+  question_number     String?
+  paper_num           String?
+  answer_text         String?
+  answer_image        String?
+  extra_answer_images String[]      @default([])
+  answer_caption      String?
+  answer_video_url    String?
+  created_by          String?
+  created_at          DateTime?     @default(now())
+  updated_at          DateTime?     @updatedAt
+
+  // @@unique([unique_question_id, unique_answer_id,paper_num])
+}
+
+model TopicalPaper {
+  id                      Int      @id @default(autoincrement())
+  topical_unique_paper_id String   @unique
+  name                    String?
+  board_id                String
+  board                   String
+  standard_id             String
+  subject_id              String
+  subject_name            String?
+  chapters                String[]
+  topics                  String[]
+  exam_year               String[]
+  difficulty_level       String[]   @default([])
+  question_range          Int? 
+  isTheory                Boolean  @default(false)
+  paper_number            String? // Optional, for custom numbering
+  document_link           String? // Optional, for custom
+  created_by              String
+  student                 Student  @relation(fields: [created_by], references: [student_id])
+  created_at              DateTime @default(now())
+  updated_at              DateTime @updatedAt
+
+  topicalQuestions         TopicalQuestion[]
+  topical_student_attempt  TopicalStudentAttempt[]
+  topical_attempted_answer TopicalAttemptedAnswer[]
+  SavedTopicalPapers       SavedTopicalPapers[]
+
+  @@index([board_id, standard_id, subject_id, exam_year])
+}
+
+model TopicalQuestion {
+  id                         Int          @id @default(autoincrement())
+  topical_unique_question_id String       @unique
+  topical_paper_id           String
+  topical_paper              TopicalPaper @relation(fields: [topical_paper_id], references: [topical_unique_paper_id], onDelete: Cascade, onUpdate: Cascade)
+  original_question_id       String
+  questionInfo               questionInfo @relation(fields: [original_question_id], references: [unique_question_id], onDelete: Cascade, onUpdate: Cascade)
+  question_number            String?
+  created_at                 DateTime     @default(now())
+  updated_at                 DateTime     @updatedAt
+
+  topical_attempted_answer TopicalAttemptedAnswer[]
+
+  @@unique([topical_unique_question_id, topical_paper_id])
+  @@index([topical_paper_id, original_question_id])
+}
+
+model Plan {
+  id         Int       @id @default(autoincrement()) @map("id")
+  plan_id    String    @unique
+  plan_name  String
+  plan_price Int
+  plan_type  String
+  created_at DateTime? @default(now())
+  updated_at DateTime? @updatedAt
+  students   Student[]
+}
+
+model Student {
+  id                      Int                     @id @default(autoincrement()) @map("id")
+  student_id              String                  @unique
+  user_id                 Int
+  user                    User?                   @relation(fields: [user_id], references: [id])
+  name                    String
+  email                   String
+  city                    String?
+  country                 String?
+  phone                   String?
+  image                   String?
+  school_name             String?
+  board_id                String?
+  board_name              String?
+  standard_id             Int?
+  standard_name           String?
+  created_by              String?
+  dob                     String?
+  gender                  String?
+  is_subject              Boolean                 @default(false)
+  is_profile_completed    Boolean                 @default(false)
+  subscribed_date         String?
+  plan_id                 String?
+  plan_validity           String?
+  plan                    Plan?                   @relation(fields: [plan_id], references: [plan_id])
+  created_at              DateTime?               @default(now())
+  updated_at              DateTime?               @updatedAt
+  student_attempt         StudentAttempt[]
+  topical_paper           TopicalPaper[]
+  topical_student_attempt TopicalStudentAttempt[]
+  SavedTopicalPapers      SavedTopicalPapers[]
+  SavedNotes      SavedNotes[]
+
+  SavedYearlyPapers SavedYearlyPapers[]
+}
+
+model StudentAttempt {
+  id                     Int               @id @default(autoincrement()) @map("id")
+  attemptId              String            @unique
+  student_id             String
+  student                Student           @relation(fields: [student_id], references: [student_id])
+  paper_id               String
+  paper                  PaperInfo         @relation(fields: [paper_id], references: [paperId])
+  score                  Int?
+  last_selected_question String?           @default("1")
+  is_timed_attempt       Boolean           @default(false)
+  start_time             DateTime?         @default(now()) // When the attempt was started
+  end_time               DateTime? // When the attempt was last paused or ended
+  status                 String? // "ongoing", "paused", "completed"
+  time_spent             Int? // Total time spent in seconds
+  time_remaining         Int? // Total time remaining in seconds
+  time_total             Int? // Total time in seconds
+  total_questions        Int?              @default(40) // Total number of questions in the paper
+  questions_answered     Int?              @default(0) // Number of questions answered
+  restart_count          Int               @default(0) //incase of restart exam
+  created_at             DateTime?         @default(now())
+  updated_at             DateTime?         @updatedAt
+  attempted_answer       AttemptedAnswer[]
+}
+
+model AttemptedAnswer {
+  id              Int            @id @default(autoincrement()) @map("id")
+  attempt_id      String
+  attempt         StudentAttempt @relation(fields: [attempt_id], references: [attemptId])
+  paper_id        String
+  paper           PaperInfo      @relation(fields: [paper_id], references: [paperId])
+  question_number String
+  question        questionInfo   @relation(fields: [question_number, paper_id], references: [question_number, PaperNum])
+  answer          String
+  isCorrect       Boolean
+  created_at      DateTime?      @default(now())
+  updated_at      DateTime?      @updatedAt
+}
+
+// topical Student Atempt Model
+model TopicalStudentAttempt {
+  id                     Int                      @id @default(autoincrement()) @map("id")
+  attemptId              String                   @unique
+  student_id             String
+  student                Student                  @relation(fields: [student_id], references: [student_id])
+  topical_paper_id       String
+  topical_paper          TopicalPaper             @relation(fields: [topical_paper_id], references: [topical_unique_paper_id])
+  score                  Int?
+  last_selected_question String?                  @default("1")
+  is_timed_attempt       Boolean                  @default(false)
+  start_time             DateTime?                @default(now()) // When the attempt was started
+  end_time               DateTime? // When the attempt was last paused or ended
+  status                 String? // "ongoing", "paused", "completed"
+  time_spent             Int? // Total time spent in seconds
+  time_remaining         Int? // Total time remaining in seconds
+  time_total             Int? // Total time in seconds
+  total_questions        Int?                     @default(40) // Total number of questions in the paper
+  questions_answered     Int?                     @default(0) // Number of questions answered
+  restart_count          Int                      @default(0) //incase of restart exam
+  created_at             DateTime?                @default(now())
+  updated_at             DateTime?                @updatedAt
+  attempted_answer       TopicalAttemptedAnswer[]
+}
+
+model TopicalAttemptedAnswer {
+  id               Int                   @id @default(autoincrement()) @map("id")
+  attempt_id       String
+  attempt          TopicalStudentAttempt @relation(fields: [attempt_id], references: [attemptId])
+  topical_paper_id String
+  topical_paper    TopicalPaper          @relation(fields: [topical_paper_id], references: [topical_unique_paper_id])
+  question_number  String
+  question         TopicalQuestion       @relation(fields: [question_number, topical_paper_id], references: [topical_unique_question_id, topical_paper_id])
+  answer           String
+  isCorrect        Boolean
+  created_at       DateTime?             @default(now())
+  updated_at       DateTime?             @updatedAt
+}
+
+// save topical paper against a student id
+model SavedTopicalPapers {
+  id               Int          @id @default(autoincrement()) @map("id")
+  student_id       String
+  student          Student      @relation(fields: [student_id], references: [student_id])
+  topical_paper_id String
+  topical_paper    TopicalPaper @relation(fields: [topical_paper_id], references: [topical_unique_paper_id])
+  created_at       DateTime?    @default(now())
+  updated_at       DateTime?    @updatedAt
+}
+
+// save yearly paper against a student id
+model SavedYearlyPapers {
+  id               Int          @id @default(autoincrement()) @map("id")
+  student_id       String
+  student          Student      @relation(fields: [student_id], references: [student_id])
+  yearly_paper_id String
+  yearly_paper    PaperInfo @relation(fields: [yearly_paper_id], references: [paperId])
+  created_at       DateTime?    @default(now())
+  updated_at       DateTime?    @updatedAt
+}
+
+model SavedNotes {
+  id               Int          @id @default(autoincrement()) @map("id")
+  student_id       String
+  student          Student      @relation(fields: [student_id], references: [student_id])
+  notes_id          String?
+  section_id        Int?
+  notes_year        String?
+  created_at       DateTime?    @default(now())
+  updated_at       DateTime?    @updatedAt
+}
+
+//make it here save yearly papers 
+// Standard model
+// Standard model
+model Standard {
+  id           Int            @id @default(autoincrement())
+  name         String
+  board        Board          @relation(fields: [board_id], references: [board_id])
+  board_id     String
+  subjects     Subject[]
+  sections     Section[]
+  chapters     Chapter[]
+  topics       Topic[]
+  paperNumbers PaperNumbers[]
+  variants     Variant[]
+  sessions     Session[]
+  status       String?        @default("Active")
+  created_by   String?        @default("Admin")
+  created_at   DateTime?      @default(now())
+  updated_at   DateTime?      @updatedAt
+
+  @@unique([name, board_id])
+  @@unique([id, board_id])
+}
+
+// Subject model
+model Subject {
+  id          Int       @id @default(autoincrement())
+  name        String
+  code        String
+  standard    Standard  @relation(fields: [standard_id, board_id], references: [id, board_id])
+  standard_id Int
+  board_id    String
+  sections    Section[]
+  Chapter     Chapter[]
+  hasNotes    Boolean? @default(false)
+  hasTopical    Boolean? @default(false)
+  status      String?   @default("Active")
+
+  created_by String?   @default("Admin")
+  created_at DateTime? @default(now())
+  updated_at DateTime? @updatedAt
+
+  @@unique([name,code, standard_id, board_id])
+  @@unique([id, standard_id, board_id])
+}
+
+// Section model
+model Section {
+  id          Int       @id @default(autoincrement())
+  name        String
+  subject     Subject   @relation(fields: [subject_id, standard_id, board_id], references: [id, standard_id, board_id])
+  subject_id  Int
+  standard_id Int
+  Standard    Standard? @relation(fields: [standard_id], references: [id])
+  board_id    String
+  // chapters    Chapter[]
+  status      String?   @default("Active")
+
+  created_by String?   @default("Admin")
+  created_at DateTime? @default(now())
+  updated_at DateTime? @updatedAt
+
+  @@unique([name, standard_id, board_id])
+  @@unique([id, standard_id, board_id])
+}
+
+// Chapter model
+model Chapter {
+  id             Int       @id @default(autoincrement())
+  name           String
+  chapter_number String?
+  // section     Section?  @relation(fields: [section_id, standard_id, board_id], references: [id, standard_id, board_id])
+  section_id     Int?
+  subject_id     Int
+  Subject        Subject?  @relation(fields: [subject_id, standard_id, board_id], references: [id, standard_id, board_id])
+  standard_id    Int
+  board_id       String
+  topics         Topic[]
+  Standard       Standard? @relation(fields: [standard_id], references: [id])
+  status         String?   @default("Active")
+
+  created_by String?   @default("Admin")
+  created_at DateTime? @default(now())
+  updated_at DateTime? @updatedAt
+
+  @@unique([name, standard_id, board_id])
+  @@unique([id, standard_id, board_id])
+}
+
+// Topic model
+model Topic {
+  id           Int       @id @default(autoincrement())
+  name         String
+  topic_number Float
+  chapter      Chapter   @relation(fields: [chapter_id, standard_id, board_id], references: [id, standard_id, board_id])
+  chapter_id   Int
+  subject_id   Int?
+  standard_id  Int
+  board_id     String
+  Standard     Standard? @relation(fields: [standard_id], references: [id])
+  status       String?   @default("Active")
+  created_by   String?   @default("Admin")
+  created_at   DateTime? @default(now())
+  updated_at   DateTime? @updatedAt
+
+  @@unique([name, chapter_id, standard_id, board_id])
+}
+
+// PaperNumbers model
+model PaperNumbers {
+  id           Int      @id @default(autoincrement())
+  paper_number String
+  standard     Standard @relation(fields: [standard_id, board_id], references: [id, board_id])
+  standard_id  Int
+  board_id     String
+  status       String?  @default("Active")
+
+  created_by String?   @default("Admin")
+  created_at DateTime? @default(now())
+  updated_at DateTime? @updatedAt
+}
+
+// Variant model
+model Variant {
+  id             Int      @id @default(autoincrement())
+  variant_number String
+  standard       Standard @relation(fields: [standard_id, board_id], references: [id, board_id])
+  standard_id    Int
+  board_id       String
+  status         String?  @default("Active")
+
+  created_by String?   @default("Admin")
+  created_at DateTime? @default(now())
+  updated_at DateTime? @updatedAt
+
+  // @@unique([variant_number, board_id])
+}
+
+// model for session
+model Session {
+  id          Int       @id @default(autoincrement())
+  name        String
+  standard    Standard  @relation(fields: [standard_id, board_id], references: [id, board_id])
+  standard_id Int
+  board_id    String
+  status      String?   @default("Active")
+  created_by  String?   @default("Admin")
+  created_at  DateTime? @default(now())
+  updated_at  DateTime? @updatedAt
+}
+
+// notes model
+model Notes {
+  id                Int       @id @default(autoincrement())
+  // name        String
+  board_id          String?
+  board_name        String?
+  standard_id       Int?
+  standard_name     String?
+  subject_id        Int?
+  subject_name      String?
+  section_id        Int?
+  section_name      String?
+  chapter_id        Int?
+  chapter_name      String?
+  topic_id          Int?
+  topic_name        String?
+  notes_description String?
+  notes_year        String?
+  file_url          String?
+  file_name         String?
+  file_upload_at    DateTime? @updatedAt
+  status            String?   @default("Active")
+  created_by        String?   @default("Admin")
+  created_at        DateTime? @default(now())
+  updated_at        DateTime? @updatedAt
+
+}
+
+// ER/GT model
+model ER_GT {
+  id             Int              @id @default(autoincrement())
+  name           String
+  board_id       String?
+  board_name     String?
+  standard_id    Int?
+  standard_name  String?
+  session_id     Int?
+  session_name   String?
+  subject_id     Int?
+  subject_name   String?
+  file_type      ER_GT_FILE_TYPE?
+  er_gt_year     String?
+  file_url       String?
+  file_name      String?
+  file_upload_at DateTime?        @updatedAt
+  status         String?          @default("Active")
+  created_by     String?          @default("Admin")
+  created_at     DateTime?        @default(now())
+  updated_at     DateTime?        @updatedAt
+}
+
+enum Role {
+  Admin
+  Curator
+  Student
+  Teacher
+}
+
+enum ER_GT_FILE_TYPE {
+  ER
+  GT
+}
