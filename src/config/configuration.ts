@@ -11,6 +11,7 @@ export default () => ({
   rabbitmq: {
     url: process.env.RABBITMQ_URL || 'amqp://localhost:5672',
     queue: 'file_migration_queue',
+    image_queue: 'question_image_migration_queue',
   },
   batchSize: parseInt(process.env.BATCH_SIZE, 10) || 100,
 });

@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as AWS from 'aws-sdk';
@@ -21,16 +22,19 @@ export class S3Service {
 
   async uploadFile(fileUrl: string, originalFilename: string): Promise<string> {
     this.logger.log(`Attempting to upload file: ${fileUrl}`);
-  
+
     try {
-      const result = await backOff(() => this.performUpload(fileUrl, originalFilename), {
-        numOfAttempts: 5,
-        startingDelay: 1000,
-        maxDelay: 60000,
-        timeMultiple: 2,
-        jitter: 'full',
-      });
-  
+      const result = await backOff(
+        () => this.performUpload(fileUrl, originalFilename),
+        {
+          numOfAttempts: 5,
+          startingDelay: 1000,
+          maxDelay: 60000,
+          timeMultiple: 2,
+          jitter: 'full',
+        },
+      );
+
       this.logger.log(
         `Successfully uploaded ${originalFilename} to ${result.Location}`,
       );
@@ -43,16 +47,42 @@ export class S3Service {
       throw error;
     }
   }
-  
+
+  async uploadImageFile(fileUrl: string, originalFilename: string): Promise<string> {
+    this.logger.log(`Attempting to upload file: ${fileUrl}`);
+
+    try {
+      const result = await backOff(
+        () => this.performImageUpload(fileUrl, originalFilename),
+        {
+          numOfAttempts: 5,
+          startingDelay: 1000,
+          maxDelay: 60000,
+          timeMultiple: 2,
+          jitter: 'full',
+        },
+      );
+
+      this.logger.log(
+        `Successfully uploaded ${originalFilename} to ${result.Location}`,
+      );
+      return result.Location;
+    } catch (error) {
+      this.logger.error(
+        `Error uploading file ${originalFilename} after all retry attempts:`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
   private async performUpload(fileUrl: string, originalFilename: string) {
     const response = await axios.get(fileUrl, {
       responseType: 'arraybuffer',
     });
 
-    if(!response?.data){
-      this.logger.log(
-        `File ${originalFilename} does not exist`,
-      );
+    if (!response?.data) {
+      this.logger.log(`File ${originalFilename} does not exist`);
       return;
     }
 
@@ -60,6 +90,25 @@ export class S3Service {
     const params = {
       Bucket: this.configService.get('s3.bucketName'),
       Key: originalFilename,
+      Body: fileContent,
+    };
+    return this.s3.upload(params).promise();
+  }
+
+  private async performImageUpload(fileUrl: string, originalFilename: string) {
+    const response = await axios.get(fileUrl, {
+      responseType: 'arraybuffer',
+    });
+
+    if (!response?.data) {
+      this.logger.log(`File ${originalFilename} does not exist`);
+      return;
+    }
+
+    const fileContent = response.data;
+    const params = {
+      Bucket: this.configService.get('s3.bucketName'),
+      Key: `images/${originalFilename}`,
       Body: fileContent,
     };
     return this.s3.upload(params).promise();
