@@ -1,8 +1,8 @@
-/* eslint-disable prettier/prettier */
 import { Controller, Logger, OnModuleInit, Post } from '@nestjs/common';
 import { MigrationService } from './migration.service';
 import { AmqpConnection, RabbitSubscribe } from '@golevelup/nestjs-rabbitmq';
 import { ConfigService } from '@nestjs/config';
+import { Channel, ConsumeMessage } from 'amqplib';
 
 @Controller('migration')
 export class MigrationController implements OnModuleInit {
@@ -21,7 +21,6 @@ export class MigrationController implements OnModuleInit {
     this.logger.log('RabbitMQ connection established');
     this.logger.log(`RabbitMQ URL: ${this.configService.get('rabbitmq.url')}`);
     this.logger.log(`RabbitMQ Queue: ${this.configService.get('rabbitmq.queue')}`);
-    this.setupConsumer();
   }
 
   private async waitForConnection() {
@@ -29,17 +28,6 @@ export class MigrationController implements OnModuleInit {
       this.logger.log('Waiting for RabbitMQ connection...');
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
-  }
-
-  private setupConsumer() {
-    this.amqpConnection.channel.consume('file_migration_queue', async (message) => {
-      if (message) {
-        this.logger.log(`Received message: ${message.content.toString()}`);
-        const paperInfo = JSON.parse(message.content.toString());
-        await this.handleMigrationTask(paperInfo, message);
-      }
-    });
-    this.logger.log('Consumer set up for file_migration_queue');
   }
 
   @Post('start')
@@ -59,20 +47,26 @@ export class MigrationController implements OnModuleInit {
     routingKey: 'file_migration_queue',
     queue: 'file_migration_queue',
   })
-  async handleMigrationTask(paperInfo: any, message: any, attempt = 0) {
+  async handleMigrationTask(paperInfo: any, message: ConsumeMessage, channel: Channel) {
     try {
       this.logger.log(`Processing migration task for paperInfo ${paperInfo.id}`);
       await this.migrationService.processMigrationTask(paperInfo);
       this.logger.log(`Completed migration task for paperInfo ${paperInfo.id}`);
-      this.amqpConnection.channel.ack(message); // Acknowledge the message
     } catch (error) {
       this.logger.error(`Error processing migration task for paperInfo ${paperInfo.id}: ${error.message}`);
-      if (attempt < this.maxRetries) {
-        this.logger.log(`Retrying processing for paperInfo ${paperInfo.id} (Attempt ${attempt + 1})`);
-        await this.handleMigrationTask(paperInfo, message, attempt + 1); // Retry with incremented attempt count
-      } else {
-        this.logger.error(`Max retries reached for paperInfo ${paperInfo.id}. Message will not be acknowledged.`);
-        // Optionally, you can add logic to requeue the message or log it to a dead-letter queue here
+      // Implement dead-letter logic here if needed
+    } finally {
+      try {
+        if (channel.connection.isConnected() && channel.isOpen()) {
+          await channel.ack(message);
+          this.logger.log(`Acknowledged message for paperInfo ${paperInfo.id}`);
+        } else {
+          this.logger.warn(`Channel closed, unable to acknowledge message for paperInfo ${paperInfo.id}`);
+          // Implement logic to handle unacknowledged message
+        }
+      } catch (ackError) {
+        this.logger.error(`Failed to acknowledge message: ${ackError.message}`);
+        // Implement recovery logic if needed
       }
     }
   }
@@ -80,14 +74,19 @@ export class MigrationController implements OnModuleInit {
   @Post('test-consume')
   async testConsume() {
     this.logger.log('Manually triggering message consumption');
-    const message = await this.amqpConnection.channel.get('file_migration_queue');
-    if (message) {
-      this.logger.log(`Retrieved message: ${message.content.toString()}`);
-      await this.handleMigrationTask(JSON.parse(message.content.toString()), message);
-      return { message: 'Test consume completed' };
-    } else {
-      this.logger.log('No message in queue');
-      return { message: 'No message found in queue' };
+    try {
+      const message = await this.amqpConnection.channel.get('file_migration_queue');
+      if (message) {
+        this.logger.log(`Retrieved message: ${message.content.toString()}`);
+        await this.handleMigrationTask(JSON.parse(message.content.toString()), message, this.amqpConnection.channel);
+        return { message: 'Test consume completed' };
+      } else {
+        this.logger.log('No message in queue');
+        return { message: 'No message found in queue' };
+      }
+    } catch (error) {
+      this.logger.error(`Error in test consume: ${error.message}`);
+      return { message: 'Error during test consume', error: error.message };
     }
   }
 }

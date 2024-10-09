@@ -14,11 +14,12 @@ export class MigrationService {
     private s3Service: S3Service,
     private configService: ConfigService,
     private amqpConnection: AmqpConnection,
+    
   ) {}
-
+  
   async queueFilesForMigration() {
     const batchSize = this.configService.get<number>('batchSize') || 1000;
-    let skip = 3092;
+    let skip = 0;
 
     // while (true) {
     while (true) {
@@ -48,24 +49,40 @@ export class MigrationService {
   }
 
   async processMigrationTask(paperInfo: any) {
+
     this.logger.log(`Processing paperInfo ${paperInfo.id}`);
+    const delay = 1000; // 2 seconds delay between file uploads
+    
     try {
       const baseUrl = 'https://curator.bestgradez.com/api/pdf/';
+  
       if (paperInfo.qp_url) {
         const completeUrl = `${baseUrl}${paperInfo.qp_url}`;
         await this.s3Service.uploadFile(completeUrl, paperInfo.qp_url);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
       if (paperInfo.ms_url) {
         const completeUrl = `${baseUrl}${paperInfo.ms_url}`;
         await this.s3Service.uploadFile(completeUrl, paperInfo.ms_url);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
       if (paperInfo.ci_url) {
         const completeUrl = `${baseUrl}${paperInfo.ci_url}`;
         await this.s3Service.uploadFile(completeUrl, paperInfo.ci_url);
+
       }
       this.logger.log(`Processed paperInfo ${paperInfo.id}`);
     } catch (error) {
       this.logger.error(`Error processing paperInfo ${paperInfo.id}:`, error.stack);
+      throw error; // Rethrow the error to be caught by the caller
     }
+  }
+
+
+  // method to queue question images
+  async queueImagesForMigration() {
+    const batchSize = this.configService.get<number>('batchSize') || 1000;
+    let skip = 0;
+
   }
 }

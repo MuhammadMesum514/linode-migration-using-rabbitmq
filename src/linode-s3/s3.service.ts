@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as AWS from 'aws-sdk';
+import { backOff } from 'exponential-backoff';
 import axios from 'axios';
 
 @Injectable()
@@ -20,29 +21,47 @@ export class S3Service {
 
   async uploadFile(fileUrl: string, originalFilename: string): Promise<string> {
     this.logger.log(`Attempting to upload file: ${fileUrl}`);
+  
     try {
-      const response = await axios.get(fileUrl, {
-        responseType: 'arraybuffer',
+      const result = await backOff(() => this.performUpload(fileUrl, originalFilename), {
+        numOfAttempts: 5,
+        startingDelay: 1000,
+        maxDelay: 60000,
+        timeMultiple: 2,
+        jitter: 'full',
       });
-      const fileContent = response.data;
-
-      const params = {
-        Bucket: this.configService.get('s3.bucketName'),
-        Key: originalFilename,
-        Body: fileContent,
-      };
-
-      const result = await this.s3.upload(params).promise();
+  
       this.logger.log(
         `Successfully uploaded ${originalFilename} to ${result.Location}`,
       );
       return result.Location;
     } catch (error) {
       this.logger.error(
-        `Error uploading file ${originalFilename}:`,
+        `Error uploading file ${originalFilename} after all retry attempts:`,
         error.stack,
       );
       throw error;
     }
+  }
+  
+  private async performUpload(fileUrl: string, originalFilename: string) {
+    const response = await axios.get(fileUrl, {
+      responseType: 'arraybuffer',
+    });
+
+    if(!response?.data){
+      this.logger.log(
+        `File ${originalFilename} does not exist`,
+      );
+      return;
+    }
+
+    const fileContent = response.data;
+    const params = {
+      Bucket: this.configService.get('s3.bucketName'),
+      Key: originalFilename,
+      Body: fileContent,
+    };
+    return this.s3.upload(params).promise();
   }
 }

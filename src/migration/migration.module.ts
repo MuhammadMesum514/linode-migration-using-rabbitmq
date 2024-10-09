@@ -12,6 +12,12 @@ import { MigrationController } from './migration.controller';
     RabbitMQModule.forRootAsync(RabbitMQModule, {
       useFactory: (configService: ConfigService) => ({
         uri: configService.get<string>('rabbitmq.url'),
+        exchanges: [
+          {
+            name: 'default',
+            type: 'topic',
+          },
+        ],
         queues: [
           {
             name: configService.get<string>('rabbitmq.queue'),
@@ -22,6 +28,11 @@ import { MigrationController } from './migration.controller';
         ],
         prefetchCount: 1,
         connectionInitOptions: { wait: false },
+        enableControllerDiscovery: true,
+        connectionManagerOptions: {
+          heartbeatIntervalInSeconds: 15,
+          reconnectTimeInSeconds: 30,
+        },
       }),
       inject: [ConfigService],
     }),
